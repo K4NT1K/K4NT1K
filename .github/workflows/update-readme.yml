@@ -1,0 +1,50 @@
+name: Refresh profile README
+
+on:
+  schedule:
+    - cron: "0 8 * * 0"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  stamp-date:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Update last-refresh stamp
+        env:
+          DATE: ${{ github.run_id }}
+        run: |
+          DATE_UTC=$(date -u +"%Y-%m-%d")
+          python3 - <<'PY'
+          from pathlib import Path
+          import os
+          import re
+
+          path = Path("README.md")
+          text = path.read_text(encoding="utf-8")
+          date = os.popen("date -u +%Y-%m-%d").read().strip()
+          updated, n = re.subn(
+              r"<!--LAST_UPDATED-->.*?<!--/LAST_UPDATED-->",
+              f"<!--LAST_UPDATED-->{date}<!--/LAST_UPDATED-->",
+              text,
+              count=1,
+              flags=re.S,
+          )
+          if n:
+              path.write_text(updated, encoding="utf-8")
+          print(f"updated={n} date={date}")
+          PY
+      - name: Commit if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add README.md
+          if git diff --staged --quiet; then
+            echo "No README changes"
+          else
+            git commit -m "chore: refresh profile README timestamp"
+            git push
+          fi
